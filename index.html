@@ -1,0 +1,103 @@
+<title>Target Extractor</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --bg:#f7f6f3; --surface:#ffffff; --ink:#1e2126; --muted:#6b7078;
+  --line:#dddad2; --accent:#0e6e5c; --accent-ink:#ffffff; --chip:#ecebe6;
+}
+:root:not([data-theme="light"]){}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#15171a; --surface:#1e2126; --ink:#eceae5; --muted:#9298a1;
+    --line:#32363c; --accent:#34b398; --accent-ink:#0f1512; --chip:#282c31;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#15171a; --surface:#1e2126; --ink:#eceae5; --muted:#9298a1;
+  --line:#32363c; --accent:#34b398; --accent-ink:#0f1512; --chip:#282c31;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.5 "IBM Plex Sans",system-ui,sans-serif;}
+.wrap{max-width:860px;margin:0 auto;padding:40px 20px 80px;display:flex;flex-direction:column;gap:20px}
+h1{font-size:22px;font-weight:600;margin:0}
+.sub{color:var(--muted);margin:0 0 6px}
+textarea{width:100%;min-height:170px;resize:vertical;background:var(--surface);color:var(--ink);
+  border:1px solid var(--line);border-radius:8px;padding:14px;font:400 13px/1.5 "IBM Plex Mono",monospace;}
+textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
+.err{color:#c2473a;font-size:13px;min-height:1em;margin:0}
+.meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.chip{background:var(--chip);border:1px solid var(--line);border-radius:999px;padding:3px 12px;font-size:12px;letter-spacing:.04em;text-transform:uppercase}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;display:flex;flex-direction:column;gap:8px}
+.key{font:500 12px "IBM Plex Mono",monospace;color:var(--muted)}
+.src{font-size:13px;color:var(--muted)}
+.tgt{font-size:17px;line-height:1.7}
+.row{display:flex;justify-content:space-between;align-items:flex-start;gap:14px}
+button{background:var(--accent);color:var(--accent-ink);border:0;border-radius:7px;padding:8px 16px;
+  font:500 13px "IBM Plex Sans",sans-serif;cursor:pointer;white-space:nowrap}
+button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+button.ghost{background:var(--chip);color:var(--ink);border:1px solid var(--line)}
+button.copied{background:var(--muted)}
+#results{display:flex;flex-direction:column;gap:14px}
+</style>
+<div class="wrap">
+  <div>
+    <h1>Target Extractor</h1>
+    <p class="sub">Paste localization JSON — get the translated strings with copy buttons.</p>
+  </div>
+  <textarea id="input" placeholder='{"language": "...", "messages": {...}}' spellcheck="false"></textarea>
+  <p class="err" id="err"></p>
+  <div class="meta" id="meta" hidden>
+    <span class="chip" id="lang"></span>
+    <span class="chip" id="cname"></span>
+    <button class="ghost" id="copyAll">Copy all targets</button>
+  </div>
+  <div id="results"></div>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+const input=$("input"),results=$("results"),err=$("err"),meta=$("meta");
+let targets=[];
+
+const RTL=["ar","he","fa","ur","ps","sd","yi"];
+
+function copy(text,btn){
+  navigator.clipboard.writeText(text).then(()=>{
+    const old=btn.textContent;btn.textContent="Copied";btn.classList.add("copied");
+    setTimeout(()=>{btn.textContent=old;btn.classList.remove("copied")},1200);
+  });
+}
+
+function render(){
+  err.textContent="";results.innerHTML="";meta.hidden=true;targets=[];
+  const raw=input.value.trim();
+  if(!raw)return;
+  let data;
+  try{data=JSON.parse(raw)}catch(e){err.textContent="Not valid JSON: "+e.message;return}
+  const lang=data.language||"?";
+  const dir=RTL.includes(lang.split("-")[0])?"rtl":"ltr";
+  $("lang").textContent="Language: "+lang;
+  const cn=data.context&&data.context.contentName;
+  $("cname").textContent=cn||"";$("cname").style.display=cn?"":"none";
+  const msgs=data.messages||{};
+  const keys=Object.keys(msgs);
+  if(!keys.length){err.textContent="No \"messages\" object found in this JSON.";return}
+  meta.hidden=false;
+  for(const k of keys){
+    const m=msgs[k],t=m&&m.target;
+    if(t==null)continue;
+    targets.push(t);
+    const card=document.createElement("div");card.className="card";
+    const key=document.createElement("div");key.className="key";key.textContent=k;
+    const row=document.createElement("div");row.className="row";
+    const tgt=document.createElement("div");tgt.className="tgt";tgt.dir=dir;tgt.textContent=t;
+    const btn=document.createElement("button");btn.textContent="Copy";
+    btn.addEventListener("click",()=>copy(t,btn));
+    row.append(tgt,btn);
+    const src=document.createElement("div");src.className="src";src.textContent=m.source||"";
+    card.append(key,row,src);
+    results.append(card);
+  }
+}
+input.addEventListener("input",render);
+$("copyAll").addEventListener("click",e=>copy(targets.join("\n"),e.target));
+</script>
